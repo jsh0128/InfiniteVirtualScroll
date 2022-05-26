@@ -1,58 +1,35 @@
-import { useMemo, useRef, useState, useEffect, useCallback, memo } from 'react'
+import React, { memo, useMemo, useState, useEffect, useCallback } from 'react'
 
-const useScrollAware = () => {
-  const [scrollTop, setScrollTop] = useState(0)
-  const windowRef = useRef<Window>(
-    typeof window !== 'undefined' ? window : null,
-  )
-  const infinityScrollRef = useRef<HTMLElement>(
-    typeof window !== 'undefined' ? document.body : null,
-  )
-
-  const onScroll = () => {
-    return requestAnimationFrame(() => {
-      windowRef.current && setScrollTop(windowRef.current.scrollY)
-    })
-  }
-
-  useEffect(() => {
-    windowRef.current && setScrollTop(windowRef.current.scrollY)
-    windowRef.current && windowRef.current.addEventListener('scroll', onScroll)
-    return () => {
-      windowRef.current &&
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        windowRef.current.removeEventListener('scroll', onScroll)
-    }
-  }, [])
-
-  return { scrollTop, infinityScrollRef }
-}
+import { debounce } from 'lodash'
 
 interface Props {
   onFetchMore: () => void
   renderAhread?: number
-  data: any[]
-  Container: (props: any) => JSX.Element
-  Item: (props: any) => JSX.Element
+  data: Array<any>
   itemClassName: string
   containerClassName: string
-  cardHeight: number
+  children: (props: any) => JSX.Element
+  defaultCardHeight: number
+  defaultColumnCount: number
 }
 
 const InfiniteVirtualScroll = ({
   onFetchMore,
-  renderAhread = 10,
+  renderAhread = 15,
   data,
-  Item,
-  Container,
   itemClassName,
   containerClassName,
-  cardHeight,
+  children,
+  defaultCardHeight,
+  defaultColumnCount,
 }: Props) => {
-  const { scrollTop, infinityScrollRef } = useScrollAware()
-  const [columnCount, setColumnCount] = useState(3)
-  const viewportHeight =
-    infinityScrollRef.current && infinityScrollRef.current.clientHeight
+  const [columnCount, setColumnCount] = useState(defaultColumnCount)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [cardHeight, setCardHeight] = useState(defaultCardHeight)
+  const [viewportHeight, setViewPortHeight] = useState(
+    document.body.clientHeight,
+  )
+
   const itemCount = useMemo(() => Math.ceil(data.length / columnCount), [
     data.length,
     columnCount,
@@ -62,6 +39,7 @@ const InfiniteVirtualScroll = ({
     cardHeight,
     itemCount,
   ])
+
   const startNode = useMemo(() => {
     const startNode = Math.floor(scrollTop / cardHeight - renderAhread)
     return Math.max(0, startNode)
@@ -69,68 +47,74 @@ const InfiniteVirtualScroll = ({
 
   const offsetY = useMemo(() => startNode * cardHeight, [cardHeight, startNode])
 
-  let visibleNodesCount =
-    viewportHeight &&
-    Math.ceil((viewportHeight / cardHeight) * renderAhread * columnCount)
-  visibleNodesCount =
-    visibleNodesCount && Math.min(itemCount - startNode, visibleNodesCount)
+  const visibleNodesCount = useMemo(() => {
+    let visibleNodesCount = Math.ceil(
+      (viewportHeight / cardHeight) * renderAhread,
+    )
+    visibleNodesCount = Math.min(itemCount - startNode, visibleNodesCount)
 
-  const scrollPositionChecking = useCallback(async () => {
-    if (
-      infinityScrollRef.current &&
-      viewportHeight &&
-      infinityScrollRef.current.scrollHeight - 700 <
-        window.scrollY + viewportHeight
-    ) {
-      onFetchMore()
-    }
-  }, [infinityScrollRef, onFetchMore, viewportHeight])
+    return visibleNodesCount
+  }, [cardHeight, itemCount, renderAhread, startNode, viewportHeight])
 
-  const visibleChildren = useMemo(() => {
-    const visibleNodes =
-      visibleNodesCount &&
+  const visibleNodes = useMemo(
+    () =>
       data.slice(
         startNode * columnCount,
         (startNode + visibleNodesCount + 1) * columnCount,
-      )
+      ),
+    [columnCount, data, startNode, visibleNodesCount],
+  )
 
-    return visibleNodes ? (
-      visibleNodes.map((nft) => (
-        <Item className={itemClassName} key={nft?.nftId} />
-      ))
-    ) : (
-      <></>
-    )
-  }, [visibleNodesCount, data, startNode, columnCount, Item, itemClassName])
+  const updateItemCount = useCallback(
+    () =>
+      debounce(() => {
+        if (window) {
+          const card = document.getElementsByClassName(itemClassName)[0]
+          const grid = document.getElementsByClassName(containerClassName)[0]
+          if (grid?.clientWidth && card?.clientWidth) {
+            setColumnCount(Math.floor(grid.clientWidth / card.clientWidth))
+            card?.clientHeight &&
+              setCardHeight(
+                card.clientHeight + parseInt(window.getComputedStyle(grid).gap),
+              )
+            setViewPortHeight(document.body.clientHeight + 500)
+          }
+        }
+      }, 50)(),
+    [containerClassName, itemClassName],
+  )
 
-  const infinityScroll = useMemo(() => () => scrollPositionChecking(), [
-    scrollPositionChecking,
-  ])
+  const onScroll = () => {
+    return requestAnimationFrame(() => {
+      setScrollTop(window.scrollY)
+    })
+  }
 
-  const updateItemCount = useCallback(() => {
-    if (window) {
-      const item = document.getElementsByClassName(itemClassName)[0]
-      const grid = document.getElementsByClassName(containerClassName)[0]
-      grid.clientWidth &&
-        setColumnCount(Math.floor(grid.clientWidth / item.clientWidth))
+  const infinityScroll = useCallback(() => {
+    if (document.body.scrollHeight - 400 < window.scrollY + viewportHeight) {
+      onFetchMore()
     }
-  }, [containerClassName, itemClassName, setColumnCount])
+  }, [onFetchMore, viewportHeight])
 
   useEffect(() => {
-    if (window) {
-      window.addEventListener('scroll', infinityScroll)
-    }
+    window.addEventListener('scroll', infinityScroll)
     return () => {
-      window &&
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        window.removeEventListener('scroll', infinityScroll)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      window.removeEventListener('scroll', infinityScroll)
     }
-  }, [infinityScroll, infinityScrollRef])
+  }, [infinityScroll])
 
   useEffect(() => {
-    window && window.addEventListener('resize', updateItemCount)
+    setScrollTop(window.scrollY)
+    window.addEventListener('scroll', onScroll)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener('resize', updateItemCount)
     return () => {
-      window && window.removeEventListener('resize', updateItemCount)
+      window.removeEventListener('resize', updateItemCount)
     }
   }, [updateItemCount])
 
@@ -147,14 +131,13 @@ const InfiniteVirtualScroll = ({
         position: 'relative',
       }}
     >
-      <Container
-        style={{
+      {React.createElement(children as any, {
+        style: {
           willChange: 'transform',
           transform: `translateY(${offsetY}px)`,
-        }}
-      >
-        {visibleChildren}
-      </Container>
+        },
+        visibleNodes,
+      })}
     </div>
   )
 }

@@ -19,9 +19,17 @@ export default function Main() {
     )
   }
 
-  const Item = ({ item, key }: { item: number | string; key: React.Key }) => {
+  const Item = ({
+    item,
+    key,
+    className,
+  }: {
+    item: number | string
+    key: React.Key
+    className: string
+  }) => {
     return (
-      <div key={key} className="Item">
+      <div key={key} className={className}>
         {item}
       </div>
     )
@@ -29,13 +37,20 @@ export default function Main() {
 
   return (
     <InfiniteVirtualScroll
-      onFetchMore={onFetchMore}
       data={data}
-      Container={GridContainer}
-      Item={Item}
-      itemClassName="Item"
-      containerClassName="Grid"
-      cardHeight={300}
-    />
+      defaultCardHeight={300}
+      defaultColumnCount={3}
+      onFetchMore={onFetchMore}
+      itemClassName="GBNFTCard"
+      containerClassName="CommonRatioGridContainer"
+    >
+      {({ style, visibleNodes }: any) => (
+        <div style={style} className="Container">
+          {visibleNodes.map((data: any, key: React.Key) => (
+            <Item className="GBNFTCard" key={key} item={data} />
+          ))}
+        </div>
+      )}
+    </InfiniteVirtualScroll>
   )
 }
