@@ -30,39 +30,22 @@ const InfiniteVirtualScroll = ({
     document.body.clientHeight,
   )
 
-  const itemCount = useMemo(() => Math.ceil(data.length / columnCount), [
-    data.length,
-    columnCount,
-  ])
+  const itemCount = Math.ceil(data.length / columnCount)
+  const totalHeight = itemCount * cardHeight
 
-  const totalHeight = useMemo(() => itemCount * cardHeight, [
-    cardHeight,
-    itemCount,
-  ])
+  let startNode = Math.floor(scrollTop / cardHeight - renderAhread)
+  startNode = Math.max(0, startNode)
 
-  const startNode = useMemo(() => {
-    const startNode = Math.floor(scrollTop / cardHeight - renderAhread)
-    return Math.max(0, startNode)
-  }, [cardHeight, renderAhread, scrollTop])
+  const offsetY = startNode * cardHeight
 
-  const offsetY = useMemo(() => startNode * cardHeight, [cardHeight, startNode])
+  let visibleNodesCount = Math.ceil(
+    (viewportHeight / cardHeight) * renderAhread,
+  )
+  visibleNodesCount = Math.min(itemCount - startNode, visibleNodesCount)
 
-  const visibleNodesCount = useMemo(() => {
-    let visibleNodesCount = Math.ceil(
-      (viewportHeight / cardHeight) * renderAhread,
-    )
-    visibleNodesCount = Math.min(itemCount - startNode, visibleNodesCount)
-
-    return visibleNodesCount
-  }, [cardHeight, itemCount, renderAhread, startNode, viewportHeight])
-
-  const visibleNodes = useMemo(
-    () =>
-      data.slice(
-        startNode * columnCount,
-        (startNode + visibleNodesCount + 1) * columnCount,
-      ),
-    [columnCount, data, startNode, visibleNodesCount],
+  const visibleNodes = data.slice(
+    startNode * columnCount,
+    (startNode + visibleNodesCount + 1) * columnCount,
   )
 
   const updateItemCount = useCallback(
@@ -142,4 +125,4 @@ const InfiniteVirtualScroll = ({
   )
 }
 
-export default memo(InfiniteVirtualScroll)
+export default InfiniteVirtualScroll
